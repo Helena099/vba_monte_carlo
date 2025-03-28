@@ -1,0 +1,133 @@
+' --------------------------------------------------------------------------------------
+' Module: mdlMain
+' Description: Module principal contenant les procédures d'initialisation
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+' Constantes pour les noms des feuilles
+Public Const SHEET_DATA As String = "Données"
+Public Const SHEET_RESULTS As String = "Résultats"
+Public Const SHEET_CHARTS As String = "Graphiques"
+Public Const SHEET_REPORT As String = "Rapport"
+
+Sub InitiateMonteCarloSimulator()
+    ' Créer les feuilles nécessaires
+    Call CreateRequiredSheets
+    
+    ' Afficher le formulaire
+    frmMonteCarloSimulator.Show
+End Sub
+
+Sub CreateRequiredSheets()
+    Dim ws As Worksheet
+    Dim sheetExists As Boolean
+    
+    ' Vérifier et créer la feuille Données si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_DATA Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_DATA
+    End If
+    
+    ' Vérifier et créer la feuille Résultats si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_RESULTS Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_RESULTS
+    End If
+    
+    ' Vérifier et créer la feuille Graphiques si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_CHARTS Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_CHARTS
+    End If
+    
+    ' Vérifier et créer la feuille Rapport si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_REPORT Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_REPORT
+    End If
+    
+    ' Préparer les feuilles
+    Call PrepareDataSheet
+    Call PrepareResultsSheet
+End Sub
+
+Sub PrepareDataSheet()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_DATA)
+    
+    ' Effacer le contenu existant
+    ws.Cells.Clear
+    
+    ' Ajouter les en-têtes pour les données de simulation
+    ws.Range("A1").Value = "Itération"
+    ws.Range("B1").Value = "Valeur Finale"
+    ws.Range("C1").Value = "Rendement"
+    
+    ' Formater l'en-tête
+    ws.Range("A1:C1").Font.Bold = True
+    ws.Range("A1:C1").Interior.Color = RGB(68, 114, 196)
+    ws.Range("A1:C1").Font.Color = RGB(255, 255, 255)
+    
+    ' Ajuster les largeurs de colonnes
+    ws.Columns("A:C").AutoFit
+End Sub
+
+Sub PrepareResultsSheet()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer le contenu existant
+    ws.Cells.Clear
+    
+    ' Ajouter les en-têtes pour les résultats
+    ws.Range("A1").Value = "Statistique"
+    ws.Range("B1").Value = "Valeur"
+    
+    ' Ajouter les statistiques à calculer
+    ws.Range("A2").Value = "Moyenne"
+    ws.Range("A3").Value = "Écart-type"
+    ws.Range("A4").Value = "Minimum"
+    ws.Range("A5").Value = "Maximum"
+    ws.Range("A6").Value = "Value at Risk (95%)"
+    ws.Range("A7").Value = "Probabilité de perte"
+    
+    ' Formater l'en-tête
+    ws.Range("A1:B1").Font.Bold = True
+    ws.Range("A1:B1").Interior.Color = RGB(68, 114, 196)
+    ws.Range("A1:B1").Font.Color = RGB(255, 255, 255)
+    
+    ' Mettre en évidence la VaR
+    ws.Range("A6:B6").Font.Bold = True
+    ws.Range("A6").Font.Color = RGB(204, 0, 0)
+    
+    ' Ajuster les largeurs de colonnes
+    ws.Columns("A:B").AutoFit
+End Sub

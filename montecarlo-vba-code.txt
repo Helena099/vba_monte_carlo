@@ -1,0 +1,436 @@
+'************************************************************
+' MODULE: modPrincipal
+'************************************************************
+Option Explicit
+
+' Fonction pour lancer le simulateur depuis n'importe où dans le classeur
+Public Sub LancerSimulateurMonteCarlo()
+    frmSimulationMonteCarlo.Show
+End Sub
+
+' Fonction pour générer un nombre aléatoire selon une distribution normale
+Public Function GenererNombreNormal(moyenne As Double, ecartType As Double) As Double
+    ' Méthode Box-Muller pour générer des nombres aléatoires selon une distribution normale
+    Dim u1 As Double, u2 As Double
+    u1 = Rnd()
+    u2 = Rnd()
+    
+    ' Éviter les valeurs nulles
+    If u1 = 0 Then u1 = 0.0000001
+    
+    GenererNombreNormal = moyenne + ecartType * Sqr(-2 * Log(u1)) * Cos(2 * Application.WorksheetFunction.Pi() * u2)
+End Function
+
+' Fonction pour créer ou accéder à une feuille
+Public Function ObtenirFeuille(nomFeuille As String) As Worksheet
+    On Error Resume Next
+    Set ObtenirFeuille = ThisWorkbook.Worksheets(nomFeuille)
+    On Error GoTo 0
+    
+    If ObtenirFeuille Is Nothing Then
+        Set ObtenirFeuille = ThisWorkbook.Worksheets.Add
+        ObtenirFeuille.Name = nomFeuille
+    End If
+End Function
+
+' Fonction pour calculer la Value at Risk (VaR) à un certain niveau
+Public Function CalculerVaR(valeurs() As Double, niveau As Double) As Double
+    Dim i As Long
+    Dim valeursTriees() As Double
+    Dim indice As Long
+    
+    ' Copier les valeurs dans un nouveau tableau
+    ReDim valeursTriees(LBound(valeurs) To UBound(valeurs))
+    For i = LBound(valeurs) To UBound(valeurs)
+        valeursTriees(i) = valeurs(i)
+    Next i
+    
+    ' Trier les valeurs (tri à bulles pour la simplicité)
+    Dim temp As Double
+    Dim j As Long
+    For i = LBound(valeursTriees) To UBound(valeursTriees) - 1
+        For j = i + 1 To UBound(valeursTriees)
+            If valeursTriees(i) > valeursTriees(j) Then
+                temp = valeursTriees(i)
+                valeursTriees(i) = valeursTriees(j)
+                valeursTriees(j) = temp
+            End If
+        Next j
+    Next i
+    
+    ' Calculer l'indice correspondant au niveau de VaR
+    indice = LBound(valeursTriees) + Round((UBound(valeursTriees) - LBound(valeursTriees)) * niveau, 0)
+    If indice > UBound(valeursTriees) Then indice = UBound(valeursTriees)
+    
+    CalculerVaR = valeursTriees(indice)
+End Function
+
+' Fonction pour effacer une feuille
+Public Sub EffacerFeuille(feuille As Worksheet)
+    feuille.Cells.Clear
+    feuille.Cells.Interior.ColorIndex = xlNone
+    
+    ' Supprimer tous les graphiques
+    Dim chrt As ChartObject
+    For Each chrt In feuille.ChartObjects
+        chrt.Delete
+    Next chrt
+End Sub
+
+'************************************************************
+' FORMULAIRE: frmSimulationMonteCarlo
+'************************************************************
+
+' Code à insérer dans la section Code du formulaire UserForm
+' Créez un formulaire nommé "frmSimulationMonteCarlo" avec les contrôles suivants:
+' - 4 TextBox: txtNbIterations, txtRendement, txtVolatilite, txtMontantInitial
+' - 2 CommandButton: btnLancer, btnFermer
+' - 4 CheckBox: chkHistogramme, chkRapport, chkVaR95, chkVaR99
+' - 1 ProgressBar: BarreProgres (peut être créé avec un Frame)
+' - 1 Label: lblProgres
+
+Private Sub UserForm_Initialize()
+    ' Définir le titre du formulaire
+    Me.Caption = "Simulateur Monte-Carlo pour l'Analyse des Risques Financiers"
+    
+    ' Initialiser les valeurs par défaut
+    txtNbIterations.Text = "10000"
+    txtRendement.Text = "8"
+    txtVolatilite.Text = "15"
+    txtMontantInitial.Text = "10000"
+    
+    ' Initialiser les checkboxes
+    chkHistogramme.Value = True
+    chkRapport.Value = True
+    chkVaR95.Value = True
+    chkVaR99.Value = True
+    
+    ' Masquer la barre de progression au démarrage
+    lblProgres.Visible = False
+    BarreProgres.Visible = False
+    
+    ' Centrer le formulaire
+    Me.StartUpPosition = 0
+    Me.Left = Application.Left + (Application.Width - Me.Width) / 2
+    Me.Top = Application.Top + (Application.Height - Me.Height) / 2
+End Sub
+
+Private Sub btnFermer_Click()
+    Unload Me
+End Sub
+
+Private Sub btnLancer_Click()
+    ' Vérifier les entrées
+    If Not EstNumerique(txtNbIterations.Text) Or Val(txtNbIterations.Text) <= 0 Then
+        MsgBox "Le nombre d'itérations doit être un nombre positif.", vbExclamation
+        txtNbIterations.SetFocus
+        Exit Sub
+    End If
+    
+    If Not EstNumerique(txtRendement.Text) Then
+        MsgBox "Le rendement espéré doit être un nombre.", vbExclamation
+        txtRendement.SetFocus
+        Exit Sub
+    End If
+    
+    If Not EstNumerique(txtVolatilite.Text) Or Val(txtVolatilite.Text) <= 0 Then
+        MsgBox "La volatilité doit être un nombre positif.", vbExclamation
+        txtVolatilite.SetFocus
+        Exit Sub
+    End If
+    
+    If Not EstNumerique(txtMontantInitial.Text) Or Val(txtMontantInitial.Text) <= 0 Then
+        MsgBox "Le montant initial doit être un nombre positif.", vbExclamation
+        txtMontantInitial.SetFocus
+        Exit Sub
+    End If
+    
+    ' Récupérer les valeurs
+    Dim nbIterations As Long
+    Dim rendement As Double
+    Dim volatilite As Double
+    Dim montantInitial As Double
+    
+    nbIterations = CLng(txtNbIterations.Text)
+    rendement = CDbl(txtRendement.Text) / 100 ' Convertir le pourcentage en décimal
+    volatilite = CDbl(txtVolatilite.Text) / 100 ' Convertir le pourcentage en décimal
+    montantInitial = CDbl(txtMontantInitial.Text)
+    
+    ' Désactiver l'interface pendant la simulation
+    Me.btnLancer.Enabled = False
+    Me.btnFermer.Enabled = False
+    Me.lblProgres.Visible = True
+    Me.BarreProgres.Visible = True
+    Me.BarreProgres.Min = 0
+    Me.BarreProgres.Max = nbIterations
+    Me.BarreProgres.Value = 0
+    
+    ' Mise à jour de l'affichage
+    DoEvents
+    
+    ' Effectuer la simulation
+    ExecuterSimulation nbIterations, rendement, volatilite, montantInitial, _
+                     chkHistogramme.Value, chkRapport.Value, chkVaR95.Value, chkVaR99.Value
+    
+    ' Masquer la barre de progression
+    Me.lblProgres.Visible = False
+    Me.BarreProgres.Visible = False
+    
+    ' Réactiver l'interface
+    Me.btnLancer.Enabled = True
+    Me.btnFermer.Enabled = True
+    
+    ' Afficher un message de confirmation
+    MsgBox "Simulation terminée avec succès !", vbInformation
+End Sub
+
+' Fonction pour vérifier si une chaîne est un nombre
+Private Function EstNumerique(texte As String) As Boolean
+    On Error Resume Next
+    EstNumerique = (Val(texte) = Val(texte))
+    On Error GoTo 0
+End Function
+
+' Fonction pour exécuter la simulation Monte-Carlo
+Private Sub ExecuterSimulation(nbIterations As Long, rendement As Double, volatilite As Double, _
+                            montantInitial As Double, genererHistogramme As Boolean, _
+                            genererRapport As Boolean, afficherVaR95 As Boolean, afficherVaR99 As Boolean)
+    ' Initialiser le générateur de nombres aléatoires
+    Randomize
+    
+    ' Préparer la feuille de résultats
+    Dim feuilleResultats As Worksheet
+    Set feuilleResultats = ObtenirFeuille("Résultats Simulation")
+    EffacerFeuille feuilleResultats
+    
+    ' Mettre en forme la feuille de résultats
+    feuilleResultats.Cells(1, 1).Value = "Simulation Monte-Carlo - Résultats"
+    feuilleResultats.Cells(1, 1).Font.Bold = True
+    feuilleResultats.Cells(1, 1).Font.Size = 14
+    
+    feuilleResultats.Cells(3, 1).Value = "Paramètres de la simulation:"
+    feuilleResultats.Cells(3, 1).Font.Bold = True
+    
+    feuilleResultats.Cells(4, 1).Value = "Nombre d'itérations:"
+    feuilleResultats.Cells(4, 2).Value = nbIterations
+    
+    feuilleResultats.Cells(5, 1).Value = "Rendement espéré:"
+    feuilleResultats.Cells(5, 2).Value = rendement
+    feuilleResultats.Cells(5, 2).NumberFormat = "0.00%"
+    
+    feuilleResultats.Cells(6, 1).Value = "Volatilité:"
+    feuilleResultats.Cells(6, 2).Value = volatilite
+    feuilleResultats.Cells(6, 2).NumberFormat = "0.00%"
+    
+    feuilleResultats.Cells(7, 1).Value = "Montant initial:"
+    feuilleResultats.Cells(7, 2).Value = montantInitial
+    feuilleResultats.Cells(7, 2).NumberFormat = "#,##0.00 €"
+    
+    ' En-têtes des résultats
+    feuilleResultats.Cells(9, 1).Value = "Itération"
+    feuilleResultats.Cells(9, 2).Value = "Valeur Finale"
+    feuilleResultats.Cells(9, 3).Value = "Rendement Réalisé"
+    
+    feuilleResultats.Range("A9:C9").Font.Bold = True
+    
+    ' Tableau pour stocker les valeurs finales et les rendements
+    Dim valeursFinales() As Double
+    ReDim valeursFinales(1 To nbIterations)
+    
+    Dim rendementsRealises() As Double
+    ReDim rendementsRealises(1 To nbIterations)
+    
+    ' Effectuer les simulations
+    Dim i As Long
+    Dim valeurFinale As Double
+    Dim rendementRealise As Double
+    
+    For i = 1 To nbIterations
+        ' Générer un rendement aléatoire selon une distribution normale
+        rendementRealise = GenererNombreNormal(rendement, volatilite)
+        rendementsRealises(i) = rendementRealise
+        
+        ' Calculer la valeur finale du portefeuille
+        valeurFinale = montantInitial * (1 + rendementRealise)
+        valeursFinales(i) = valeurFinale
+        
+        ' Enregistrer les résultats dans la feuille
+        feuilleResultats.Cells(9 + i, 1).Value = i
+        feuilleResultats.Cells(9 + i, 2).Value = valeurFinale
+        feuilleResultats.Cells(9 + i, 2).NumberFormat = "#,##0.00 €"
+        feuilleResultats.Cells(9 + i, 3).Value = rendementRealise
+        feuilleResultats.Cells(9 + i, 3).NumberFormat = "0.00%"
+        
+        ' Mettre à jour la barre de progression
+        Me.BarreProgres.Value = i
+        
+        ' Mise à jour de l'interface tous les 100 itérations
+        If i Mod 100 = 0 Then
+            Me.lblProgres.Caption = "Progression: " & Format(i / nbIterations, "0%")
+            DoEvents
+        End If
+    Next i
+    
+    ' Calculer les statistiques
+    Dim moyenne As Double
+    Dim ecartType As Double
+    Dim var95 As Double
+    Dim var99 As Double
+    
+    moyenne = Application.WorksheetFunction.Average(valeursFinales)
+    ecartType = Application.WorksheetFunction.StDev(valeursFinales)
+    
+    ' Calculer la VaR à 95% et 99%
+    var95 = CalculerVaR(valeursFinales, 0.05)
+    var99 = CalculerVaR(valeursFinales, 0.01)
+    
+    ' Afficher les statistiques
+    feuilleResultats.Cells(9 + nbIterations + 2, 1).Value = "Statistiques:"
+    feuilleResultats.Cells(9 + nbIterations + 2, 1).Font.Bold = True
+    
+    feuilleResultats.Cells(9 + nbIterations + 3, 1).Value = "Valeur moyenne du portefeuille:"
+    feuilleResultats.Cells(9 + nbIterations + 3, 2).Value = moyenne
+    feuilleResultats.Cells(9 + nbIterations + 3, 2).NumberFormat = "#,##0.00 €"
+    
+    feuilleResultats.Cells(9 + nbIterations + 4, 1).Value = "Écart-type:"
+    feuilleResultats.Cells(9 + nbIterations + 4, 2).Value = ecartType
+    feuilleResultats.Cells(9 + nbIterations + 4, 2).NumberFormat = "#,##0.00 €"
+    
+    If afficherVaR95 Then
+        feuilleResultats.Cells(9 + nbIterations + 5, 1).Value = "Value at Risk (95%):"
+        feuilleResultats.Cells(9 + nbIterations + 5, 2).Value = montantInitial - var95
+        feuilleResultats.Cells(9 + nbIterations + 5, 2).NumberFormat = "#,##0.00 €"
+    End If
+    
+    If afficherVaR99 Then
+        feuilleResultats.Cells(9 + nbIterations + 6, 1).Value = "Value at Risk (99%):"
+        feuilleResultats.Cells(9 + nbIterations + 6, 2).Value = montantInitial - var99
+        feuilleResultats.Cells(9 + nbIterations + 6, 2).NumberFormat = "#,##0.00 €"
+    End If
+    
+    ' Créer un histogramme des résultats si demandé
+    If genererHistogramme Then
+        CréerHistogramme feuilleResultats, valeursFinales, "Histogramme des Valeurs Finales du Portefeuille", "A", 9 + nbIterations + 8, nbIterations, montantInitial
+        CréerGraphiqueEvolution feuilleResultats, rendementsRealises, "Distribution des Rendements", "A", 9 + nbIterations + 25, nbIterations
+    End If
+    
+    ' Créer un rapport de synthèse si demandé
+    If genererRapport Then
+        CréerRapportSynthese nbIterations, rendement, volatilite, montantInitial, moyenne, ecartType, var95, var99, afficherVaR95, afficherVaR99
+    End If
+    
+    ' Ajuster automatiquement la largeur des colonnes
+    feuilleResultats.Columns("A:C").AutoFit
+    
+    ' Activer la feuille de résultats
+    feuilleResultats.Activate
+    feuilleResultats.Range("A1").Select
+End Sub
+
+' Fonction pour créer un histogramme
+Private Sub CréerHistogramme(feuille As Worksheet, valeurs() As Double, titre As String, colonne As String, ligne As Long, nbIterations As Long, montantInitial As Double)
+    ' Définir le nombre de classes (bins)
+    Dim nbClasses As Long
+    nbClasses = Application.WorksheetFunction.Min(20, Application.WorksheetFunction.RoundUp(Sqr(nbIterations), 0))
+    
+    ' Trouver les valeurs min et max
+    Dim minVal As Double, maxVal As Double
+    minVal = Application.WorksheetFunction.Min(valeurs)
+    maxVal = Application.WorksheetFunction.Max(valeurs)
+    
+    ' Calculer la largeur des classes
+    Dim largeurClasse As Double
+    largeurClasse = (maxVal - minVal) / nbClasses
+    
+    ' Préparer les données de l'histogramme
+    Dim i As Long, j As Long
+    Dim limiteInf As Double, limiteSup As Double
+    Dim frequence As Long
+    
+    ' Titres pour l'histogramme
+    feuille.Cells(ligne, 1).Value = titre
+    feuille.Cells(ligne, 1).Font.Bold = True
+    
+    feuille.Cells(ligne + 1, 1).Value = "Limite inférieure"
+    feuille.Cells(ligne + 1, 2).Value = "Limite supérieure"
+    feuille.Cells(ligne + 1, 3).Value = "Milieu de classe"
+    feuille.Cells(ligne + 1, 4).Value = "Fréquence"
+    feuille.Cells(ligne + 1, 5).Value = "Pourcentage"
+    
+    feuille.Range(feuille.Cells(ligne + 1, 1), feuille.Cells(ligne + 1, 5)).Font.Bold = True
+    
+    ' Calculer les fréquences
+    For i = 1 To nbClasses
+        limiteInf = minVal + (i - 1) * largeurClasse
+        limiteSup = minVal + i * largeurClasse
+        
+        ' Compter les valeurs dans cette classe
+        frequence = 0
+        For j = LBound(valeurs) To UBound(valeurs)
+            If valeurs(j) >= limiteInf And (valeurs(j) < limiteSup Or (i = nbClasses And valeurs(j) <= limiteSup)) Then
+                frequence = frequence + 1
+            End If
+        Next j
+        
+        ' Enregistrer les résultats
+        feuille.Cells(ligne + 1 + i, 1).Value = limiteInf
+        feuille.Cells(ligne + 1 + i, 1).NumberFormat = "#,##0.00 €"
+        feuille.Cells(ligne + 1 + i, 2).Value = limiteSup
+        feuille.Cells(ligne + 1 + i, 2).NumberFormat = "#,##0.00 €"
+        feuille.Cells(ligne + 1 + i, 3).Value = (limiteInf + limiteSup) / 2
+        feuille.Cells(ligne + 1 + i, 3).NumberFormat = "#,##0.00 €"
+        feuille.Cells(ligne + 1 + i, 4).Value = frequence
+        feuille.Cells(ligne + 1 + i, 5).Value = frequence / nbIterations
+        feuille.Cells(ligne + 1 + i, 5).NumberFormat = "0.00%"
+    Next i
+    
+    ' Créer le graphique
+    Dim graphique As ChartObject
+    Set graphique = feuille.ChartObjects.Add(Left:=feuille.Columns(colonne).Left, _
+                                           Top:=feuille.Rows(ligne + nbClasses + 3).Top, _
+                                           Width:=450, _
+                                           Height:=250)
+    
+    graphique.Chart.SetSourceData Source:=feuille.Range(feuille.Cells(ligne + 2, 3), feuille.Cells(ligne + 1 + nbClasses, 4))
+    graphique.Chart.ChartType = xlColumnClustered
+    
+    ' Configurer le graphique
+    With graphique.Chart
+        .HasTitle = True
+        .ChartTitle.Text = titre
+        .Axes(xlCategory).HasTitle = True
+        .Axes(xlCategory).AxisTitle.Text = "Valeur du portefeuille"
+        .Axes(xlValue).HasTitle = True
+        .Axes(xlValue).AxisTitle.Text = "Fréquence"
+        
+        ' Ajouter une ligne verticale pour le montant initial
+        Dim ligne1 As Long
+        ligne1 = .SeriesCollection.Count + 1
+        .SeriesCollection.NewSeries
+        .SeriesCollection(ligne1).Name = "Montant initial"
+        .SeriesCollection(ligne1).XValues = Array(montantInitial, montantInitial)
+        .SeriesCollection(ligne1).Values = Array(0, Application.WorksheetFunction.Max(feuille.Range(feuille.Cells(ligne + 2, 4), feuille.Cells(ligne + 1 + nbClasses, 4))))
+        .SeriesCollection(ligne1).ChartType = xlLine
+        .SeriesCollection(ligne1).Format.Line.ForeColor.RGB = RGB(255, 0, 0)
+        .SeriesCollection(ligne1).Format.Line.Weight = 2
+    End With
+End Sub
+
+' Fonction pour créer un graphique d'évolution
+Private Sub CréerGraphiqueEvolution(feuille As Worksheet, valeurs() As Double, titre As String, colonne As String, ligne As Long, nbIterations As Long)
+    ' Préparer les données pour le graphique
+    feuille.Cells(ligne, 1).Value = titre
+    feuille.Cells(ligne, 1).Font.Bold = True
+    
+    ' Créer un graphique de dispersion
+    Dim graphique As ChartObject
+    Set graphique = feuille.ChartObjects.Add(Left:=feuille.Columns(colonne).Left, _
+                                           Top:=feuille.Rows(ligne + 1).Top, _
+                                           Width:=450, _
+                                           Height:=250)
+    
+    ' Configurer les données pour un graphique de dispersion
+    Dim i As Long
+    For i = LBound(valeurs) To UBound(valeurs)
+        feuille.Cells(ligne + 1 + i, 10).Value = i
+        feuille.Cells(ligne + 1 + i, 11).

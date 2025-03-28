@@ -1,0 +1,531 @@
+' --------------------------------------------------------------------------------------
+' Ce code doit être exécuté une seule fois pour créer le formulaire utilisateur (UserForm)
+' --------------------------------------------------------------------------------------
+
+Sub CreateUserForm()
+    Dim frm As Object
+    Dim ctrl As Object
+    
+    ' Vérifier si le formulaire existe déjà
+    On Error Resume Next
+    Set frm = ThisWorkbook.VBProject.VBComponents("frmMonteCarloSimulator")
+    On Error GoTo 0
+    
+    ' Supprimer le formulaire s'il existe déjà
+    If Not frm Is Nothing Then
+        ThisWorkbook.VBProject.VBComponents.Remove frm
+    End If
+    
+    ' Créer un nouveau formulaire
+    Set frm = ThisWorkbook.VBProject.VBComponents.Add(3) ' 3 = vbext_ct_MSForm
+    
+    ' Définir les propriétés du formulaire
+    With frm
+        .Name = "frmMonteCarloSimulator"
+        .Properties("Caption") = "Simulateur Monte-Carlo pour l'Analyse des Risques Financiers"
+        .Properties("Width") = 800
+        .Properties("Height") = 600
+        .Properties("BackColor") = RGB(240, 240, 240)
+    End With
+    
+    ' Ajouter un label pour le titre
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblTitle"
+        .Caption = "Simulateur Monte-Carlo pour l'Analyse des Risques Financiers"
+        .Left = 0
+        .Top = 0
+        .Width = 800
+        .Height = 40
+        .BackColor = RGB(68, 114, 196)
+        .ForeColor = RGB(255, 255, 255)
+        .Font.Size = 14
+        .Font.Bold = True
+        .TextAlign = 2 ' fmTextAlignCenter
+    End With
+    
+    ' --- Section des paramètres ---
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraParameters"
+        .Caption = "Paramètres de Simulation"
+        .Left = 30
+        .Top = 60
+        .Width = 350
+        .Height = 280
+        .BackColor = RGB(255, 255, 255)
+        .Font.Size = 10
+        .Font.Bold = True
+        .ForeColor = RGB(68, 114, 196)
+    End With
+    
+    ' --- Labels et TextBoxes pour les paramètres ---
+    ' Nombre d'itérations
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblIterations"
+        .Caption = "Nombre d'itérations:"
+        .Left = 45
+        .Top = 100
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.TextBox.1")
+    With ctrl
+        .Name = "txtIterations"
+        .Text = "10000"
+        .Left = 200
+        .Top = 100
+        .Width = 160
+        .Height = 20
+    End With
+    
+    ' Rendement espéré
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblReturn"
+        .Caption = "Rendement espéré (%):"
+        .Left = 45
+        .Top = 130
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.TextBox.1")
+    With ctrl
+        .Name = "txtReturn"
+        .Text = "5.5"
+        .Left = 200
+        .Top = 130
+        .Width = 160
+        .Height = 20
+    End With
+    
+    ' Volatilité
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblVolatility"
+        .Caption = "Volatilité (%):"
+        .Left = 45
+        .Top = 160
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.TextBox.1")
+    With ctrl
+        .Name = "txtVolatility"
+        .Text = "15.0"
+        .Left = 200
+        .Top = 160
+        .Width = 160
+        .Height = 20
+    End With
+    
+    ' Montant initial
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblInitialAmount"
+        .Caption = "Montant initial (€):"
+        .Left = 45
+        .Top = 190
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.TextBox.1")
+    With ctrl
+        .Name = "txtInitialAmount"
+        .Text = "100000"
+        .Left = 200
+        .Top = 190
+        .Width = 160
+        .Height = 20
+    End With
+    
+    ' Horizon temporel
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblYears"
+        .Caption = "Horizon (années):"
+        .Left = 45
+        .Top = 220
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.TextBox.1")
+    With ctrl
+        .Name = "txtYears"
+        .Text = "5"
+        .Left = 200
+        .Top = 220
+        .Width = 160
+        .Height = 20
+    End With
+    
+    ' Bouton de lancement de la simulation
+    Set ctrl = frm.Designer.Controls.Add("Forms.CommandButton.1")
+    With ctrl
+        .Name = "cmdRunSimulation"
+        .Caption = "Lancer la Simulation"
+        .Left = 110
+        .Top = 260
+        .Width = 180
+        .Height = 30
+        .BackColor = RGB(68, 114, 196)
+        .ForeColor = RGB(255, 255, 255)
+        .Font.Bold = True
+    End With
+    
+    ' --- Section des résultats ---
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraResults"
+        .Caption = "Résultats"
+        .Left = 420
+        .Top = 60
+        .Width = 350
+        .Height = 280
+        .BackColor = RGB(255, 255, 255)
+        .Font.Size = 10
+        .Font.Bold = True
+        .ForeColor = RGB(68, 114, 196)
+    End With
+    
+    ' --- Labels pour les résultats ---
+    ' Labels pour les statistiques
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMeanTitle"
+        .Caption = "Moyenne:"
+        .Left = 435
+        .Top = 100
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMean"
+        .Caption = "0.00 €"
+        .Left = 550
+        .Top = 100
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblStdDevTitle"
+        .Caption = "Écart-type:"
+        .Left = 435
+        .Top = 130
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblStdDev"
+        .Caption = "0.00 €"
+        .Left = 550
+        .Top = 130
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMinTitle"
+        .Caption = "Minimum:"
+        .Left = 435
+        .Top = 160
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMin"
+        .Caption = "0.00 €"
+        .Left = 550
+        .Top = 160
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMaxTitle"
+        .Caption = "Maximum:"
+        .Left = 435
+        .Top = 190
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblMax"
+        .Caption = "0.00 €"
+        .Left = 550
+        .Top = 190
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblVaRTitle"
+        .Caption = "Value at Risk (95%):"
+        .Left = 435
+        .Top = 220
+        .Width = 120
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = True
+        .ForeColor = RGB(204, 0, 0)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblVaR"
+        .Caption = "0.00 €"
+        .Left = 550
+        .Top = 220
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = True
+        .ForeColor = RGB(204, 0, 0)
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblLossProbTitle"
+        .Caption = "Probabilité de perte:"
+        .Left = 435
+        .Top = 250
+        .Width = 120
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .ForeColor = RGB(51, 51, 51)
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblLossProb"
+        .Caption = "0.00%"
+        .Left = 550
+        .Top = 250
+        .Width = 200
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Font.Bold = False
+        .TextAlign = 1 ' fmTextAlignRight
+    End With
+    
+    ' --- Section de visualisation ---
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraVisualization"
+        .Caption = "Visualisation"
+        .Left = 30
+        .Top = 350
+        .Width = 740
+        .Height = 190
+        .BackColor = RGB(255, 255, 255)
+        .Font.Size = 10
+        .Font.Bold = True
+        .ForeColor = RGB(68, 114, 196)
+    End With
+    
+    ' OptionButtons pour sélectionner le type de graphique
+    Set ctrl = frm.Designer.Controls.Add("Forms.OptionButton.1")
+    With ctrl
+        .Name = "optHistogram"
+        .Caption = "Histogramme"
+        .Left = 50
+        .Top = 380
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .Value = True
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.OptionButton.1")
+    With ctrl
+        .Name = "optTimeEvolution"
+        .Caption = "Évolution temporelle"
+        .Left = 180
+        .Top = 380
+        .Width = 150
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.OptionButton.1")
+    With ctrl
+        .Name = "optDistribution"
+        .Caption = "Distribution"
+        .Left = 350
+        .Top = 380
+        .Width = 100
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+    End With
+    
+    ' Frames pour contenir les différents graphiques
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraHistogram"
+        .Caption = ""
+        .Left = 45
+        .Top = 405
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+        .Visible = True
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraTimeEvolution"
+        .Caption = ""
+        .Left = 45
+        .Top = 405
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+        .Visible = False
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Frame.1")
+    With ctrl
+        .Name = "fraDistribution"
+        .Caption = ""
+        .Left = 45
+        .Top = 405
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+        .Visible = False
+    End With
+    
+    ' Images pour les graphiques
+    Set ctrl = frm.Designer.Controls.Add("Forms.Image.1")
+    With ctrl
+        .Name = "imgHistogram"
+        .Left = 0
+        .Top = 0
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+    End With
+    frm.Designer.Controls("imgHistogram").Parent = frm.Designer.Controls("fraHistogram")
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Image.1")
+    With ctrl
+        .Name = "imgTimeEvolution"
+        .Left = 0
+        .Top = 0
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+    End With
+    frm.Designer.Controls("imgTimeEvolution").Parent = frm.Designer.Controls("fraTimeEvolution")
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.Image.1")
+    With ctrl
+        .Name = "imgDistribution"
+        .Left = 0
+        .Top = 0
+        .Width = 710
+        .Height = 120
+        .BorderStyle = 0 ' fmBorderStyleNone
+    End With
+    frm.Designer.Controls("imgDistribution").Parent = frm.Designer.Controls("fraDistribution")
+    
+    ' Boutons d'action en bas
+    Set ctrl = frm.Designer.Controls.Add("Forms.CommandButton.1")
+    With ctrl
+        .Name = "cmdExportReport"
+        .Caption = "Exporter le Rapport"
+        .Left = 220
+        .Top = 550
+        .Width = 160
+        .Height = 30
+        .BackColor = RGB(68, 114, 196)
+        .ForeColor = RGB(255, 255, 255)
+        .Font.Bold = True
+    End With
+    
+    Set ctrl = frm.Designer.Controls.Add("Forms.CommandButton.1")
+    With ctrl
+        .Name = "cmdClose"
+        .Caption = "Fermer"
+        .Left = 410
+        .Top = 550
+        .Width = 160
+        .Height = 30
+    End With
+    
+    ' Label pour le statut
+    Set ctrl = frm.Designer.Controls.Add("Forms.Label.1")
+    With ctrl
+        .Name = "lblStatus"
+        .Caption = "Prêt"
+        .Left = 30
+        .Top = 550
+        .Width = 180
+        .Height = 20
+        .BackStyle = 0 ' fmBackStyleTransparent
+        .ForeColor = RGB(0, 128, 0)
+    End With
+    
+    MsgBox "Le formulaire frmMonteCarloSimulator a été créé avec succès." & vbCrLf & _
+           "Vous pouvez maintenant ajouter le code du formulaire dans le module correspondant.", vbInformation
+End Sub

@@ -1,0 +1,149 @@
+' --------------------------------------------------------------------------------------
+' Module: mdlMonteCarlo
+' Description: Module pour exécuter les simulations Monte-Carlo
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Function BoxMullerTransform() As Double
+    ' Implémentation de la transformation Box-Muller pour générer des nombres aléatoires selon une loi normale
+    Dim u1 As Double, u2 As Double
+    
+    ' Générer deux nombres aléatoires uniformes entre 0 et 1 (exclus)
+    u1 = Rnd()
+    If u1 = 0 Then u1 = 0.0000001
+    u2 = Rnd()
+    
+    ' Appliquer la transformation Box-Muller
+    BoxMullerTransform = Sqr(-2 * Log(u1)) * Cos(2 * Application.WorksheetFunction.Pi() * u2)
+End Function
+
+Sub RunMonteCarloSimulation(iterations As Long, expectedReturn As Double, volatility As Double, initialAmount As Double, years As Integer)
+    Dim i As Long
+    Dim wsData As Worksheet
+    Dim wsResults As Worksheet
+    Dim randomReturn As Double
+    Dim finalValue As Double
+    Dim values() As Double
+    Dim returns() As Double
+    
+    ' Initialiser le générateur de nombres aléatoires
+    Randomize
+    
+    ' Redimensionner les tableaux
+    ReDim values(1 To iterations)
+    ReDim returns(1 To iterations)
+    
+    ' Obtenir les références des feuilles
+    Set wsData = ThisWorkbook.Worksheets(SHEET_DATA)
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer les anciennes données
+    wsData.Range("A2:C" & wsData.Rows.Count).ClearContents
+    
+    ' Exécuter les simulations
+    Application.ScreenUpdating = False
+    
+    For i = 1 To iterations
+        ' Générer un rendement aléatoire selon une distribution normale
+        randomReturn = expectedReturn + volatility * BoxMullerTransform()
+        
+        ' Calculer la valeur finale après la période donnée
+        finalValue = initialAmount * (1 + randomReturn / 100) ^ years
+        
+        ' Stocker les valeurs
+        values(i) = finalValue
+        returns(i) = (finalValue - initialAmount) / initialAmount * 100
+        
+        ' Enregistrer les résultats
+        wsData.Cells(i + 1, 1).Value = i
+        wsData.Cells(i + 1, 2).Value = finalValue
+        wsData.Cells(i + 1, 3).Value = returns(i)
+        
+        ' Mettre à jour tous les 1000 itérations pour des performances
+        If i Mod 1000 = 0 Then
+            DoEvents
+        End If
+    Next i
+    
+    ' Calculer et afficher les résultats
+    Call CalculateAndDisplayResults(values, returns, initialAmount)
+    
+    ' Créer les graphiques
+    Call CreateHistogram(values)
+    Call CreateTimeEvolutionChart(iterations, years, expectedReturn, volatility, initialAmount)
+    Call CreateDistributionChart(values)
+    
+    Application.ScreenUpdating = True
+End Sub
+
+Sub CalculateAndDisplayResults(values() As Double, returns() As Double, initialAmount As Double)
+    Dim wsResults As Worksheet
+    Dim i As Long
+    Dim avg As Double, stdev As Double
+    Dim minVal As Double, maxVal As Double
+    Dim VaR As Double, lossProb As Double
+    Dim sortedValues() As Double
+    Dim iterations As Long
+    
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    iterations = UBound(values)
+    
+    ' Copier les valeurs pour le tri
+    ReDim sortedValues(1 To iterations)
+    For i = 1 To iterations
+        sortedValues(i) = values(i)
+    Next i
+    
+    ' Tri des valeurs (tri à bulles simple)
+    Call BubbleSort(sortedValues)
+    
+    ' Calcul des statistiques
+    avg = Application.WorksheetFunction.Average(values)
+    stdev = Application.WorksheetFunction.StDev(values)
+    minVal = Application.WorksheetFunction.Min(values)
+    maxVal = Application.WorksheetFunction.Max(values)
+    
+    ' Calcul de la VaR à 95%
+    VaR = sortedValues(CInt(iterations * 0.05))
+    
+    ' Probabilité de perte
+    lossProb = 0
+    For i = 1 To iterations
+        If values(i) < initialAmount Then
+            lossProb = lossProb + 1
+        End If
+    Next i
+    lossProb = lossProb / iterations * 100
+    
+    ' Afficher les résultats
+    wsResults.Range("B2").Value = avg
+    wsResults.Range("B3").Value = stdev
+    wsResults.Range("B4").Value = minVal
+    wsResults.Range("B5").Value = maxVal
+    wsResults.Range("B6").Value = VaR
+    wsResults.Range("B7").Value = lossProb
+    
+    ' Formatter les résultats monétaires
+    wsResults.Range("B2:B6").NumberFormat = "#,##0.00 €"
+    wsResults.Range("B7").NumberFormat = "0.00%"
+End Sub
+
+Sub BubbleSort(arr() As Double)
+    Dim i As Long, j As Long
+    Dim temp As Double
+    
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(i) > arr(j) Then
+                temp = arr(i)
+                arr(i) = arr(j)
+                arr(j) = temp
+            End If
+        Next j
+        
+        ' Pour améliorer les performances sur de grands ensembles
+        If i Mod 1000 = 0 Then
+            DoEvents
+        End If
+    Next i
+End Sub

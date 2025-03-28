@@ -1,0 +1,117 @@
+' --------------------------------------------------------------------------------------
+' Module: mdlReport
+' Description: Module pour générer le rapport final
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Sub GenerateReport(iterations As Long, expectedReturn As Double, volatility As Double, initialAmount As Double, years As Integer)
+    Dim wsReport As Worksheet
+    Dim wsResults As Worksheet
+    Dim chartSheet As Chart
+    
+    Set wsReport = ThisWorkbook.Worksheets(SHEET_REPORT)
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer le contenu existant
+    wsReport.Cells.Clear
+    
+    ' Ajouter le titre
+    wsReport.Range("A1").Value = "Rapport de Simulation Monte-Carlo pour l'Analyse des Risques Financiers"
+    wsReport.Range("A1").Font.Size = 16
+    wsReport.Range("A1").Font.Bold = True
+    
+    ' Ajouter les paramètres de la simulation
+    wsReport.Range("A3").Value = "Paramètres de Simulation:"
+    wsReport.Range("A3").Font.Bold = True
+    
+    wsReport.Range("A4").Value = "Nombre d'itérations:"
+    wsReport.Range("B4").Value = iterations
+    
+    wsReport.Range("A5").Value = "Rendement espéré (%):"
+    wsReport.Range("B5").Value = expectedReturn
+    wsReport.Range("B5").NumberFormat = "0.00%"
+    
+    wsReport.Range("A6").Value = "Volatilité (%):"
+    wsReport.Range("B6").Value = volatility
+    wsReport.Range("B6").NumberFormat = "0.00%"
+    
+    wsReport.Range("A7").Value = "Montant initial (€):"
+    wsReport.Range("B7").Value = initialAmount
+    wsReport.Range("B7").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A8").Value = "Horizon (années):"
+    wsReport.Range("B8").Value = years
+    
+    ' Ajouter les résultats
+    wsReport.Range("A10").Value = "Résultats de la Simulation:"
+    wsReport.Range("A10").Font.Bold = True
+    
+    wsReport.Range("A11").Value = "Moyenne:"
+    wsReport.Range("B11").Value = wsResults.Range("B2").Value
+    wsReport.Range("B11").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A12").Value = "Écart-type:"
+    wsReport.Range("B12").Value = wsResults.Range("B3").Value
+    wsReport.Range("B12").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A13").Value = "Minimum:"
+    wsReport.Range("B13").Value = wsResults.Range("B4").Value
+    wsReport.Range("B13").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A14").Value = "Maximum:"
+    wsReport.Range("B14").Value = wsResults.Range("B5").Value
+    wsReport.Range("B14").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A15").Value = "Value at Risk (95%):"
+    wsReport.Range("B15").Value = wsResults.Range("B6").Value
+    wsReport.Range("B15").NumberFormat = "#,##0.00 €"
+    wsReport.Range("A15:B15").Font.Bold = True
+    wsReport.Range("A15").Font.Color = RGB(204, 0, 0)
+    
+    wsReport.Range("A16").Value = "Probabilité de perte:"
+    wsReport.Range("B16").Value = wsResults.Range("B7").Value
+    wsReport.Range("B16").NumberFormat = "0.00%"
+    
+    ' Ajouter une explication de la VaR
+    wsReport.Range("A18").Value = "Interprétation de la Value at Risk (VaR):"
+    wsReport.Range("A19").Value = "Avec une confiance de 95%, la perte ne dépassera pas " & Format(initialAmount - wsResults.Range("B6").Value, "#,##0.00 €") & " sur la période considérée."
+    
+    ' Insérer les graphiques
+    Dim chartObj As ChartObject
+    
+    ' Insérer l'histogramme
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Histogramme" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            wsReport.Range("A21").Select
+            wsReport.Paste
+            
+            ' Ajouter une légende sous le graphique
+            wsReport.Range("A37").Value = "Distribution des valeurs finales du portefeuille après " & years & " années"
+            wsReport.Range("A37").Font.Italic = True
+        End If
+    Next
+    
+    ' Insérer l'évolution temporelle
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Évolution Temporelle" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            wsReport.Range("A39").Select
+            wsReport.Paste
+            
+            ' Ajouter une légende sous le graphique
+            wsReport.Range("A55").Value = "Exemples de chemins d'évolution possibles du portefeuille sur " & years & " années"
+            wsReport.Range("A55").Font.Italic = True
+        End If
+    Next
+    
+    ' Formater le rapport
+    wsReport.Columns("A:B").AutoFit
+    
+    ' Ajouter un pied de page
+    wsReport.PageSetup.LeftFooter = "Simulation Monte-Carlo - " & Format(Now, "dd/mm/yyyy hh:mm")
+    wsReport.PageSetup.RightFooter = "Page &P sur &N"
+    
+    ' Aperçu du rapport
+    wsReport.Activate
+End Sub

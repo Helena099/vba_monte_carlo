@@ -1,0 +1,858 @@
+' --------------------------------------------------------------------------------------
+' Module: mdlMain
+' Description: Module principal contenant les procédures d'initialisation
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+' Constantes pour les noms des feuilles
+Public Const SHEET_DATA As String = "Données"
+Public Const SHEET_RESULTS As String = "Résultats"
+Public Const SHEET_CHARTS As String = "Graphiques"
+Public Const SHEET_REPORT As String = "Rapport"
+
+Sub InitiateMonteCarloSimulator()
+    ' Créer les feuilles nécessaires
+    Call CreateRequiredSheets
+    
+    ' Afficher le formulaire
+    frmMonteCarloSimulator.Show
+End Sub
+
+Sub CreateRequiredSheets()
+    Dim ws As Worksheet
+    Dim sheetExists As Boolean
+    
+    ' Vérifier et créer la feuille Données si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_DATA Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_DATA
+    End If
+    
+    ' Vérifier et créer la feuille Résultats si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_RESULTS Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_RESULTS
+    End If
+    
+    ' Vérifier et créer la feuille Graphiques si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_CHARTS Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_CHARTS
+    End If
+    
+    ' Vérifier et créer la feuille Rapport si nécessaire
+    sheetExists = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = SHEET_REPORT Then
+            sheetExists = True
+            Exit For
+        End If
+    Next ws
+    
+    If Not sheetExists Then
+        ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)).Name = SHEET_REPORT
+    End If
+    
+    ' Préparer les feuilles
+    Call PrepareDataSheet
+    Call PrepareResultsSheet
+End Sub
+
+Sub PrepareDataSheet()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_DATA)
+    
+    ' Effacer le contenu existant
+    ws.Cells.Clear
+    
+    ' Ajouter les en-têtes pour les données de simulation
+    ws.Range("A1").Value = "Itération"
+    ws.Range("B1").Value = "Valeur Finale"
+    ws.Range("C1").Value = "Rendement"
+    
+    ' Formater l'en-tête
+    ws.Range("A1:C1").Font.Bold = True
+    ws.Range("A1:C1").Interior.Color = RGB(68, 114, 196)
+    ws.Range("A1:C1").Font.Color = RGB(255, 255, 255)
+    
+    ' Ajuster les largeurs de colonnes
+    ws.Columns("A:C").AutoFit
+End Sub
+
+Sub PrepareResultsSheet()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer le contenu existant
+    ws.Cells.Clear
+    
+    ' Ajouter les en-têtes pour les résultats
+    ws.Range("A1").Value = "Statistique"
+    ws.Range("B1").Value = "Valeur"
+    
+    ' Ajouter les statistiques à calculer
+    ws.Range("A2").Value = "Moyenne"
+    ws.Range("A3").Value = "Écart-type"
+    ws.Range("A4").Value = "Minimum"
+    ws.Range("A5").Value = "Maximum"
+    ws.Range("A6").Value = "Value at Risk (95%)"
+    ws.Range("A7").Value = "Probabilité de perte"
+    
+    ' Formater l'en-tête
+    ws.Range("A1:B1").Font.Bold = True
+    ws.Range("A1:B1").Interior.Color = RGB(68, 114, 196)
+    ws.Range("A1:B1").Font.Color = RGB(255, 255, 255)
+    
+    ' Mettre en évidence la VaR
+    ws.Range("A6:B6").Font.Bold = True
+    ws.Range("A6").Font.Color = RGB(204, 0, 0)
+    
+    ' Ajuster les largeurs de colonnes
+    ws.Columns("A:B").AutoFit
+End Sub
+
+' --------------------------------------------------------------------------------------
+' Module: mdlMonteCarlo
+' Description: Module pour exécuter les simulations Monte-Carlo
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Function BoxMullerTransform() As Double
+    ' Implémentation de la transformation Box-Muller pour générer des nombres aléatoires selon une loi normale
+    Dim u1 As Double, u2 As Double
+    
+    ' Générer deux nombres aléatoires uniformes entre 0 et 1 (exclus)
+    u1 = Rnd()
+    If u1 = 0 Then u1 = 0.0000001
+    u2 = Rnd()
+    
+    ' Appliquer la transformation Box-Muller
+    BoxMullerTransform = Sqr(-2 * Log(u1)) * Cos(2 * Application.WorksheetFunction.Pi() * u2)
+End Function
+
+Sub RunMonteCarloSimulation(iterations As Long, expectedReturn As Double, volatility As Double, initialAmount As Double, years As Integer)
+    Dim i As Long
+    Dim wsData As Worksheet
+    Dim wsResults As Worksheet
+    Dim randomReturn As Double
+    Dim finalValue As Double
+    Dim values() As Double
+    Dim returns() As Double
+    
+    ' Initialiser le générateur de nombres aléatoires
+    Randomize
+    
+    ' Redimensionner les tableaux
+    ReDim values(1 To iterations)
+    ReDim returns(1 To iterations)
+    
+    ' Obtenir les références des feuilles
+    Set wsData = ThisWorkbook.Worksheets(SHEET_DATA)
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer les anciennes données
+    wsData.Range("A2:C" & wsData.Rows.Count).ClearContents
+    
+    ' Exécuter les simulations
+    Application.ScreenUpdating = False
+    
+    For i = 1 To iterations
+        ' Générer un rendement aléatoire selon une distribution normale
+        randomReturn = expectedReturn + volatility * BoxMullerTransform()
+        
+        ' Calculer la valeur finale après la période donnée
+        finalValue = initialAmount * (1 + randomReturn / 100) ^ years
+        
+        ' Stocker les valeurs
+        values(i) = finalValue
+        returns(i) = (finalValue - initialAmount) / initialAmount * 100
+        
+        ' Enregistrer les résultats
+        wsData.Cells(i + 1, 1).Value = i
+        wsData.Cells(i + 1, 2).Value = finalValue
+        wsData.Cells(i + 1, 3).Value = returns(i)
+        
+        ' Mettre à jour tous les 1000 itérations pour des performances
+        If i Mod 1000 = 0 Then
+            DoEvents
+        End If
+    Next i
+    
+    ' Calculer et afficher les résultats
+    Call CalculateAndDisplayResults(values, returns, initialAmount)
+    
+    ' Créer les graphiques
+    Call CreateHistogram(values)
+    Call CreateTimeEvolutionChart(iterations, years, expectedReturn, volatility, initialAmount)
+    Call CreateDistributionChart(values)
+    
+    Application.ScreenUpdating = True
+End Sub
+
+Sub CalculateAndDisplayResults(values() As Double, returns() As Double, initialAmount As Double)
+    Dim wsResults As Worksheet
+    Dim i As Long
+    Dim avg As Double, stdev As Double
+    Dim minVal As Double, maxVal As Double
+    Dim VaR As Double, lossProb As Double
+    Dim sortedValues() As Double
+    Dim iterations As Long
+    
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    iterations = UBound(values)
+    
+    ' Copier les valeurs pour le tri
+    ReDim sortedValues(1 To iterations)
+    For i = 1 To iterations
+        sortedValues(i) = values(i)
+    Next i
+    
+    ' Tri des valeurs (tri à bulles simple)
+    Call BubbleSort(sortedValues)
+    
+    ' Calcul des statistiques
+    avg = Application.WorksheetFunction.Average(values)
+    stdev = Application.WorksheetFunction.StDev(values)
+    minVal = Application.WorksheetFunction.Min(values)
+    maxVal = Application.WorksheetFunction.Max(values)
+    
+    ' Calcul de la VaR à 95%
+    VaR = sortedValues(CInt(iterations * 0.05))
+    
+    ' Probabilité de perte
+    lossProb = 0
+    For i = 1 To iterations
+        If values(i) < initialAmount Then
+            lossProb = lossProb + 1
+        End If
+    Next i
+    lossProb = lossProb / iterations * 100
+    
+    ' Afficher les résultats
+    wsResults.Range("B2").Value = avg
+    wsResults.Range("B3").Value = stdev
+    wsResults.Range("B4").Value = minVal
+    wsResults.Range("B5").Value = maxVal
+    wsResults.Range("B6").Value = VaR
+    wsResults.Range("B7").Value = lossProb
+    
+    ' Formatter les résultats monétaires
+    wsResults.Range("B2:B6").NumberFormat = "#,##0.00 €"
+    wsResults.Range("B7").NumberFormat = "0.00%"
+End Sub
+
+Sub BubbleSort(arr() As Double)
+    Dim i As Long, j As Long
+    Dim temp As Double
+    
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(i) > arr(j) Then
+                temp = arr(i)
+                arr(i) = arr(j)
+                arr(j) = temp
+            End If
+        Next j
+        
+        ' Pour améliorer les performances sur de grands ensembles
+        If i Mod 1000 = 0 Then
+            DoEvents
+        End If
+    Next i
+End Sub
+
+' --------------------------------------------------------------------------------------
+' Module: mdlCharts
+' Description: Module pour créer les graphiques de visualisation
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Sub CreateHistogram(values() As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim histoRange As Range
+    Dim i As Long, binCount As Integer
+    Dim minVal As Double, maxVal As Double, binWidth As Double
+    Dim frequency() As Long
+    Dim bins() As Double
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    
+    ' Effacer le contenu existant
+    wsCharts.Cells.Clear
+    
+    ' Calculer les paramètres de l'histogramme
+    minVal = Application.WorksheetFunction.Min(values)
+    maxVal = Application.WorksheetFunction.Max(values)
+    
+    ' Déterminer le nombre de bins (classes) - règle empirique
+    binCount = WorksheetFunction.RoundUp(Sqr(UBound(values)), 0)
+    If binCount > 20 Then binCount = 20 ' Limiter à 20 pour la lisibilité
+    
+    binWidth = (maxVal - minVal) / binCount
+    
+    ' Redimensionner les tableaux pour les fréquences et les bins
+    ReDim frequency(1 To binCount)
+    ReDim bins(1 To binCount)
+    
+    ' Calculer les limites des bins
+    For i = 1 To binCount
+        bins(i) = minVal + (i - 1) * binWidth
+    Next i
+    
+    ' Compter les fréquences
+    For i = LBound(values) To UBound(values)
+        Dim binIndex As Integer
+        binIndex = WorksheetFunction.Min(WorksheetFunction.Max(WorksheetFunction.Floor((values(i) - minVal) / binWidth, 1) + 1, 1), binCount)
+        frequency(binIndex) = frequency(binIndex) + 1
+    Next i
+    
+    ' Créer les données pour le graphique
+    wsCharts.Range("A1").Value = "Bin"
+    wsCharts.Range("B1").Value = "Limite inférieure"
+    wsCharts.Range("C1").Value = "Fréquence"
+    
+    For i = 1 To binCount
+        wsCharts.Cells(i + 1, 1).Value = i
+        wsCharts.Cells(i + 1, 2).Value = bins(i)
+        wsCharts.Cells(i + 1, 3).Value = frequency(i)
+    Next i
+    
+    ' Créer l'histogramme
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Histogramme"
+    
+    With chartSheet
+        .ChartType = xlColumnClustered
+        .SetSourceData Source:=wsCharts.Range("A1:C" & binCount + 1)
+        .HasTitle = True
+        .ChartTitle.Text = "Distribution des Valeurs Finales du Portefeuille"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Valeur finale du portefeuille (€)"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Fréquence"
+        
+        ' Formater la série
+        With .FullSeriesCollection(1)
+            .Name = "Fréquence"
+            .Format.Fill.ForeColor.RGB = RGB(68, 114, 196)
+        End With
+        
+        ' Ajouter une ligne pour la VaR à 95%
+        Dim VaR As Double
+        VaR = ThisWorkbook.Worksheets(SHEET_RESULTS).Range("B6").Value
+        
+        Dim varLine As Object
+        Set varLine = .Shapes.AddLine(Left:=0, Top:=0, Width:=0, Height:=0)
+        varLine.Line.ForeColor.RGB = RGB(204, 0, 0)
+        varLine.Line.Weight = 2
+        varLine.Line.DashStyle = msoLineDash
+        
+        ' Positionner la ligne à l'emplacement de la VaR (approximatif)
+        Dim varBin As Integer
+        varBin = WorksheetFunction.Max(WorksheetFunction.Floor((VaR - minVal) / binWidth, 1) + 1, 1)
+        
+        ' Ajouter une annotation pour la VaR
+        Dim varTextbox As Object
+        Set varTextbox = .Shapes.AddTextbox(msoTextOrientationHorizontal, Left:=0, Top:=0, Width:=100, Height:=20)
+        varTextbox.TextFrame.Characters.Text = "VaR 95%: " & Format(VaR, "#,##0.00 €")
+        varTextbox.TextFrame.Characters.Font.Color = RGB(204, 0, 0)
+        varTextbox.TextFrame.Characters.Font.Bold = True
+    End With
+End Sub
+
+Sub CreateTimeEvolutionChart(iterations As Long, years As Integer, expectedReturn As Double, volatility As Double, initialAmount As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim i As Long, j As Long
+    Dim paths As Integer
+    Dim value As Double
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    
+    ' Créer quelques chemins d'évolution pour illustration
+    paths = 10 ' Nombre de chemins à afficher
+    
+    ' Ajouter les en-têtes
+    wsCharts.Range("E1").Value = "Année"
+    For i = 1 To paths
+        wsCharts.Cells(1, E + i).Value = "Chemin " & i
+    Next i
+    
+    ' Générer les années
+    For i = 0 To years
+        wsCharts.Cells(i + 2, 5).Value = i
+    Next i
+    
+    ' Générer quelques chemins aléatoires
+    Randomize
+    
+    For i = 1 To paths
+        ' La valeur initiale est la même pour tous les chemins
+        wsCharts.Cells(2, 5 + i).Value = initialAmount
+        
+        ' Générer l'évolution du portefeuille année par année
+        For j = 1 To years
+            Dim annualReturn As Double
+            annualReturn = expectedReturn + volatility * BoxMullerTransform()
+            value = wsCharts.Cells(j + 1, 5 + i).Value * (1 + annualReturn / 100)
+            wsCharts.Cells(j + 2, 5 + i).Value = value
+        Next j
+    Next i
+    
+    ' Créer le graphique d'évolution temporelle
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Évolution Temporelle"
+    
+    With chartSheet
+        .ChartType = xlLine
+        .SetSourceData Source:=wsCharts.Range("E1:" & wsCharts.Cells(1, 5 + paths).Address & wsCharts.Cells(years + 2, 5 + paths).Address)
+        .HasTitle = True
+        .ChartTitle.Text = "Évolution Temporelle du Portefeuille"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Année"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Valeur du portefeuille (€)"
+        
+        ' Formater les séries pour différentes couleurs
+        For i = 1 To paths
+            With .FullSeriesCollection(i)
+                .Format.Line.Weight = 1.5
+            End With
+        Next i
+    End With
+End Sub
+
+Sub CreateDistributionChart(values() As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim i As Long
+    Dim sortedValues() As Double
+    Dim iterations As Long
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    iterations = UBound(values)
+    
+    ' Copier les valeurs pour le tri
+    ReDim sortedValues(1 To iterations)
+    For i = 1 To iterations
+        sortedValues(i) = values(i)
+    Next i
+    
+    ' Tri des valeurs
+    Call BubbleSort(sortedValues)
+    
+    ' Préparer les données pour une courbe de distribution cumulée
+    wsCharts.Range("H1").Value = "Valeur"
+    wsCharts.Range("I1").Value = "Percentile"
+    
+    ' Sélectionner un sous-ensemble des valeurs triées pour le graphique
+    Dim step As Long
+    step = iterations \ 100 ' Prendre environ 100 points
+    If step < 1 Then step = 1
+    
+    Dim count As Long
+    count = 0
+    
+    For i = 1 To iterations Step step
+        count = count + 1
+        wsCharts.Cells(count + 1, 8).Value = sortedValues(i)
+        wsCharts.Cells(count + 1, 9).Value = i / iterations
+    Next i
+    
+    ' Ajouter la dernière valeur pour avoir 100%
+    count = count + 1
+    wsCharts.Cells(count + 1, 8).Value = sortedValues(iterations)
+    wsCharts.Cells(count + 1, 9).Value = 1
+    
+    ' Créer le graphique de distribution cumulée
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Distribution Cumulée"
+    
+    With chartSheet
+        .ChartType = xlLine
+        .SetSourceData Source:=wsCharts.Range("H1:I" & count + 1)
+        .HasTitle = True
+        .ChartTitle.Text = "Distribution Cumulée des Valeurs Finales"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Valeur finale du portefeuille (€)"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Probabilité cumulée"
+        
+        ' Formater la série
+        With .FullSeriesCollection(1)
+            .Format.Line.ForeColor.RGB = RGB(68, 114, 196)
+            .Format.Line.Weight = 2
+        End With
+        
+        ' Ajouter une ligne pour la VaR à 95%
+        Dim VaR As Double
+        VaR = ThisWorkbook.Worksheets(SHEET_RESULTS).Range("B6").Value
+        
+        Dim varLine As Object
+        Set varLine = .Shapes.AddLine(Left:=0, Top:=0, Width:=0, Height:=0)
+        varLine.Line.ForeColor.RGB = RGB(204, 0, 0)
+        varLine.Line.Weight = 2
+        varLine.Line.DashStyle = msoLineDash
+    End With
+End Sub
+
+' --------------------------------------------------------------------------------------
+' Module: mdlReport
+' Description: Module pour générer le rapport final
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Sub GenerateReport(iterations As Long, expectedReturn As Double, volatility As Double, initialAmount As Double, years As Integer)
+    Dim wsReport As Worksheet
+    Dim wsResults As Worksheet
+    Dim chartSheet As Chart
+    
+    Set wsReport = ThisWorkbook.Worksheets(SHEET_REPORT)
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    ' Effacer le contenu existant
+    wsReport.Cells.Clear
+    
+    ' Ajouter le titre
+    wsReport.Range("A1").Value = "Rapport de Simulation Monte-Carlo pour l'Analyse des Risques Financiers"
+    wsReport.Range("A1").Font.Size = 16
+    wsReport.Range("A1").Font.Bold = True
+    
+    ' Ajouter les paramètres de la simulation
+    wsReport.Range("A3").Value = "Paramètres de Simulation:"
+    wsReport.Range("A3").Font.Bold = True
+    
+    wsReport.Range("A4").Value = "Nombre d'itérations:"
+    wsReport.Range("B4").Value = iterations
+    
+    wsReport.Range("A5").Value = "Rendement espéré (%):"
+    wsReport.Range("B5").Value = expectedReturn
+    wsReport.Range("B5").NumberFormat = "0.00%"
+    
+    wsReport.Range("A6").Value = "Volatilité (%):"
+    wsReport.Range("B6").Value = volatility
+    wsReport.Range("B6").NumberFormat = "0.00%"
+    
+    wsReport.Range("A7").Value = "Montant initial (€):"
+    wsReport.Range("B7").Value = initialAmount
+    wsReport.Range("B7").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A8").Value = "Horizon (années):"
+    wsReport.Range("B8").Value = years
+    
+    ' Ajouter les résultats
+    wsReport.Range("A10").Value = "Résultats de la Simulation:"
+    wsReport.Range("A10").Font.Bold = True
+    
+    wsReport.Range("A11").Value = "Moyenne:"
+    wsReport.Range("B11").Value = wsResults.Range("B2").Value
+    wsReport.Range("B11").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A12").Value = "Écart-type:"
+    wsReport.Range("B12").Value = wsResults.Range("B3").Value
+    wsReport.Range("B12").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A13").Value = "Minimum:"
+    wsReport.Range("B13").Value = wsResults.Range("B4").Value
+    wsReport.Range("B13").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A14").Value = "Maximum:"
+    wsReport.Range("B14").Value = wsResults.Range("B5").Value
+    wsReport.Range("B14").NumberFormat = "#,##0.00 €"
+    
+    wsReport.Range("A15").Value = "Value at Risk (95%):"
+    wsReport.Range("B15").Value = wsResults.Range("B6").Value
+    wsReport.Range("B15").NumberFormat = "#,##0.00 €"
+    wsReport.Range("A15:B15").Font.Bold = True
+    wsReport.Range("A15").Font.Color = RGB(204, 0, 0)
+    
+    wsReport.Range("A16").Value = "Probabilité de perte:"
+    wsReport.Range("B16").Value = wsResults.Range("B7").Value
+    wsReport.Range("B16").NumberFormat = "0.00%"
+    
+    ' Ajouter une explication de la VaR
+    wsReport.Range("A18").Value = "Interprétation de la Value at Risk (VaR):"
+    wsReport.Range("A19").Value = "Avec une confiance de 95%, la perte ne dépassera pas " & Format(initialAmount - wsResults.Range("B6").Value, "#,##0.00 €") & " sur la période considérée."
+    
+    ' Insérer les graphiques
+    Dim chartObj As ChartObject
+    
+    ' Insérer l'histogramme
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Histogramme" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            wsReport.Range("A21").Select
+            wsReport.Paste
+            
+            ' Ajouter une légende sous le graphique
+            wsReport.Range("A37").Value = "Distribution des valeurs finales du portefeuille après " & years & " années"
+            wsReport.Range("A37").Font.Italic = True
+        End If
+    Next
+    
+    ' Insérer l'évolution temporelle
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Évolution Temporelle" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            wsReport.Range("A39").Select
+            wsReport.Paste
+            
+            ' Ajouter une légende sous le graphique
+            wsReport.Range("A55").Value = "Exemples de chemins d'évolution possibles du portefeuille sur " & years & " années"
+            wsReport.Range("A55").Font.Italic = True
+        End If
+    Next
+    
+    ' Formater le rapport
+    wsReport.Columns("A:B").AutoFit
+    
+    ' Ajouter un pied de page
+    wsReport.PageSetup.LeftFooter = "Simulation Monte-Carlo - " & Format(Now, "dd/mm/yyyy hh:mm")
+    wsReport.PageSetup.RightFooter = "Page &P sur &N"
+    
+    ' Aperçu du rapport
+    wsReport.Activate
+End Sub
+
+' --------------------------------------------------------------------------------------
+' UserForm: frmMonteCarloSimulator
+' Description: Interface graphique du simulateur
+' --------------------------------------------------------------------------------------
+' Code à copier dans le module de classe du formulaire
+
+Option Explicit
+
+Private Sub UserForm_Initialize()
+    ' Initialiser les valeurs par défaut
+    txtIterations.Text = "10000"
+    txtReturn.Text = "5.5"
+    txtVolatility.Text = "15.0"
+    txtInitialAmount.Text = "100000"
+    txtYears.Text = "5"
+    
+    ' Initialiser les onglets
+    fraHistogram.Visible = True
+    fraTimeEvolution.Visible = False
+    fraDistribution.Visible = False
+    
+    ' Activer l'onglet Histogramme par défaut
+    optHistogram.Value = True
+    
+    ' Définir le titre
+    Me.Caption = "Simulateur Monte-Carlo pour l'Analyse des Risques Financiers"
+End Sub
+
+Private Sub cmdRunSimulation_Click()
+    ' Vérifier les entrées
+    If Not IsNumeric(txtIterations.Text) Or Val(txtIterations.Text) <= 0 Then
+        MsgBox "Veuillez entrer un nombre d'itérations valide.", vbExclamation
+        txtIterations.SetFocus
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(txtReturn.Text) Then
+        MsgBox "Veuillez entrer un rendement espéré valide.", vbExclamation
+        txtReturn.SetFocus
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(txtVolatility.Text) Or Val(txtVolatility.Text) <= 0 Then
+        MsgBox "Veuillez entrer une volatilité valide.", vbExclamation
+        txtVolatility.SetFocus
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(txtInitialAmount.Text) Or Val(txtInitialAmount.Text) <= 0 Then
+        MsgBox "Veuillez entrer un montant initial valide.", vbExclamation
+        txtInitialAmount.SetFocus
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(txtYears.Text) Or Val(txtYears.Text) <= 0 Then
+        MsgBox "Veuillez entrer un horizon temporel valide.", vbExclamation
+        txtYears.SetFocus
+        Exit Sub
+    End If
+    
+    ' Afficher un message de progression
+    lblStatus.Caption = "Exécution de la simulation en cours..."
+    Me.Repaint
+    
+    ' Désactiver les contrôles pendant la simulation
+    EnableControls False
+    
+    ' Exécuter la simulation
+    Call RunMonteCarloSimulation( _
+        CLng(txtIterations.Text), _
+        CDbl(txtReturn.Text), _
+        CDbl(txtVolatility.Text), _
+        CDbl(txtInitialAmount.Text), _
+        CInt(txtYears.Text))
+    
+    ' Mettre à jour les résultats affichés
+    UpdateResults
+    
+    ' Afficher le graphique approprié
+    ShowSelectedChart
+    
+    ' Réactiver les contrôles
+    EnableControls True
+    
+    ' Mettre à jour le message de statut
+    lblStatus.Caption = "Simulation terminée avec succès."
+End Sub
+
+Private Sub EnableControls(enable As Boolean)
+    ' Activer/désactiver les contrôles pendant la simulation
+    txtIterations.Enabled = enable
+    txtReturn.Enabled = enable
+    txtVolatility.Enabled = enable
+    txtInitialAmount.Enabled = enable
+    txtYears.Enabled = enable
+    cmdRunSimulation.Enabled = enable
+    cmdExportReport.Enabled = enable
+    cmdClose.Enabled = enable
+    optHistogram.Enabled = enable
+    optTimeEvolution.Enabled = enable
+    optDistribution.Enabled = enable
+End Sub
+
+Private Sub UpdateResults()
+    ' Mettre à jour les résultats affichés dans le formulaire
+    Dim wsResults As Worksheet
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    lblMean.Caption = Format(wsResults.Range("B2").Value, "#,##0.00 €")
+    lblStdDev.Caption = Format(wsResults.Range("B3").Value, "#,##0.00 €")
+    lblMin.Caption = Format(wsResults.Range("B4").Value, "#,##0.00 €")
+    lblMax.Caption = Format(wsResults.Range("B5").Value, "#,##0.00 €")
+    lblVaR.Caption = Format(wsResults.Range("B6").Value, "#,##0.00 €")
+    lblLossProb.Caption = Format(wsResults.Range("B7").Value, "0.00%")
+End Sub
+
+Private Sub ShowSelectedChart()
+    ' Afficher le graphique sélectionné
+    If optHistogram.Value Then
+        fraHistogram.Visible = True
+        fraTimeEvolution.Visible = False
+        fraDistribution.Visible = False
+        UpdateHistogramChart
+    ElseIf optTimeEvolution.Value Then
+        fraHistogram.Visible = False
+        fraTimeEvolution.Visible = True
+        fraDistribution.Visible = False
+        UpdateTimeEvolutionChart
+    ElseIf optDistribution.Value Then
+        fraHistogram.Visible = False
+        fraTimeEvolution.Visible = False
+        fraDistribution.Visible = True
+        UpdateDistributionChart
+    End If
+End Sub
+
+Private Sub UpdateHistogramChart()
+    ' Mettre à jour le graphique d'histogramme dans le formulaire
+    Dim chartSheet As Chart
+    
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Histogramme" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            imgHistogram.Picture = Application.ClipboardImage
+            Exit For
+        End If
+    Next
+End Sub
+
+Private Sub UpdateTimeEvolutionChart()
+    ' Mettre à jour le graphique d'évolution temporelle dans le formulaire
+    Dim chartSheet As Chart
+    
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Évolution Temporelle" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            imgTimeEvolution.Picture = Application.ClipboardImage
+            Exit For
+        End If
+    Next
+End Sub
+
+Private Sub UpdateDistributionChart()
+    ' Mettre à jour le graphique de distribution dans le formulaire
+    Dim chartSheet As Chart
+    
+    For Each chartSheet In ThisWorkbook.Charts
+        If chartSheet.Name = "Distribution Cumulée" Then
+            chartSheet.CopyPicture Appearance:=xlScreen, Format:=xlPicture, Size:=xlScreen
+            imgDistribution.Picture = Application.ClipboardImage
+            Exit For
+        End If
+    Next
+End Sub
+
+Private Sub optHistogram_Click()
+    ShowSelectedChart
+End Sub
+
+Private Sub optTimeEvolution_Click()
+    ShowSelectedChart
+End Sub
+
+Private Sub optDistribution_Click()
+    ShowSelectedChart
+End Sub
+
+Private Sub cmdExportReport_Click()
+    ' Vérifier que la simulation a été effectuée
+    Dim wsResults As Worksheet
+    Set wsResults = ThisWorkbook.Worksheets(SHEET_RESULTS)
+    
+    If wsResults.Range("B2").Value = "" Then
+        MsgBox "Veuillez d'abord exécuter une simulation.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Générer le rapport
+    Call GenerateReport( _
+        CLng(txtIterations.Text), _
+        CDbl(txtReturn.Text), _
+        CDbl(txtVolatility.Text), _
+        CDbl(txtInitialAmount.Text), _
+        CInt(txtYears.Text))
+    
+    ' Informer l'utilisateur
+    MsgBox "Le rapport a été généré avec succès." & vbCrLf & _
+           "Vous pouvez le consulter dans l'onglet '" & SHEET_REPORT & "'.", vbInformation
+End Sub
+
+Private Sub cmdClose_Click()
+    ' Fermer le formulaire
+    Unload Me
+End Sub

@@ -1,0 +1,153 @@
+Pour créer les contrôles nécessaires dans le formulaire, vous devez utiliser l'interface graphique de l'éditeur de formulaires VBA. Je ne peux pas modifier directement l'interface graphique du formulaire, mais je peux vous donner des instructions détaillées pour ajouter tous les contrôles nécessaires.
+Voici comment ajouter tous les contrôles pour que votre code s'exécute sans erreur :
+
+Ouvrez l'éditeur de formulaires :
+
+Dans l'éditeur VBA, double-cliquez sur "frmMonteCarloSimulator" dans l'explorateur de projet
+Assurez-vous que la boîte à outils est visible (menu Affichage > Boîte à outils)
+
+
+Ajoutez les contrôles suivants :
+Section Paramètres (en haut du formulaire):
+
+Ajoutez 5 étiquettes (Label) pour les descriptions : "Nombre d'itérations", "Rendement espéré (%)", "Volatilité (%)", "Montant initial (€)", "Horizon (années)"
+Ajoutez 5 zones de texte (TextBox) nommées :
+
+txtIterations
+txtReturn
+txtVolatility
+txtInitialAmount
+txtYears
+
+
+
+Section Boutons d'action (en bas du formulaire):
+
+Ajoutez 3 boutons (CommandButton) nommés :
+
+cmdRunSimulation (texte: "Exécuter la simulation")
+cmdExportReport (texte: "Générer le rapport")
+cmdClose (texte: "Fermer")
+
+
+Ajoutez une étiquette (Label) nommée lblStatus pour afficher le statut
+
+Section Résultats (à droite):
+
+Ajoutez des étiquettes (Label) pour les titres : "Résultats", "Moyenne", "Écart-type", "Minimum", "Maximum", "VaR (95%)", "Probabilité de perte"
+Ajoutez 6 étiquettes (Label) pour afficher les valeurs, nommées :
+
+lblMean
+lblStdDev
+lblMin
+lblMax
+lblVaR
+lblLossProb
+
+
+
+Section Graphiques (au centre):
+
+Ajoutez 3 boutons d'option (OptionButton) nommés :
+
+optHistogram (texte: "Histogramme")
+optTimeEvolution (texte: "Évolution temporelle")
+optDistribution (texte: "Distribution cumulée")
+
+
+Ajoutez 3 cadres (Frame) nommés :
+
+fraHistogram
+fraTimeEvolution
+fraDistribution
+
+
+Dans chaque cadre, ajoutez un contrôle d'image (Image) correspondant :
+
+Dans fraHistogram : imgHistogram
+Dans fraTimeEvolution : imgTimeEvolution
+Dans fraDistribution : imgDistribution
+
+
+
+
+Disposition suggérée :
+
+Paramètres en haut
+Graphiques au centre (les trois cadres superposés)
+Résultats sur le côté droit
+Boutons d'action en bas
+Statut tout en bas
+
+
+Taille et propriétés :
+
+Définissez la taille du formulaire à environ 800x600 pixels
+Définissez les cadres à environ 500x300 pixels
+Définissez les contrôles d'image à la même taille que les cadres
+Assurez-vous que tous les cadres sont au même emplacement, de sorte qu'ils se superposent
+
+
+
+Si vous suivez ces instructions pour ajouter tous les contrôles avec leurs noms exacts, le code devrait s'exécuter sans erreur. Assurez-vous que tous les noms respectent exactement la casse utilisée dans le code (par exemple, "fraHistogram" et non "FraHistogram").
+
+
+
+Voici les instructions détaillées pour ajouter les contrôles nécessaires en utilisant la boîte à outils VBA :
+
+Ouvrir la boîte à outils
+
+Dans l'éditeur VBA, si la boîte à outils n'est pas visible, cliquez sur "Affichage" > "Boîte à outils"
+
+
+Identifier les icônes des contrôles dans la boîte à outils
+
+Label (Étiquette) : Icône "A" (comme une étiquette de texte)
+TextBox (Zone de texte) : Icône représentant un petit rectangle vide
+CommandButton (Bouton) : Icône représentant un bouton rectangulaire
+Frame (Cadre) : Icône représentant un rectangle avec un titre en haut
+OptionButton (Bouton d'option) : Icône représentant un petit cercle
+Image (Contrôle d'image) : Icône représentant un petit cadre avec une image
+
+
+Comment ajouter un contrôle
+
+Cliquez sur l'icône correspondant dans la boîte à outils
+Cliquez sur le formulaire à l'endroit où vous voulez placer le contrôle
+Faites glisser pour définir la taille du contrôle
+
+
+Comment définir les propriétés d'un contrôle
+
+Après avoir ajouté un contrôle, cliquez dessus pour le sélectionner
+La fenêtre Propriétés devrait s'afficher (sinon, cliquez sur F4 ou "Affichage" > "Fenêtre Propriétés")
+Dans la fenêtre Propriétés, recherchez la propriété "Name" et changez-la pour le nom exact nécessaire (ex: "txtIterations")
+Pour les étiquettes et boutons, changez également la propriété "Caption" pour définir leur texte
+
+
+Comment positionner les contrôles avec précision
+
+Vous pouvez utiliser les touches fléchées pour déplacer les contrôles avec précision
+Maintenez Ctrl enfoncé tout en cliquant sur plusieurs contrôles pour les sélectionner en groupe
+Utilisez "Format" > "Aligner" pour aligner précisément plusieurs contrôles
+Utilisez "Format" > "Espacer" pour répartir uniformément les contrôles
+
+
+Pour mettre un contrôle dans un cadre (Frame)
+
+Créez d'abord le cadre (Frame)
+Puis créez le contrôle (comme Image) à l'intérieur du cadre en cliquant à l'intérieur du cadre après avoir sélectionné l'outil
+
+
+Exemple pour créer un élément de chaque type
+
+Label (étiquette) : Cliquez sur l'icône "A", cliquez sur le formulaire, tapez "Nombre d'itérations", dans les propriétés, laissez le nom par défaut
+TextBox (zone de texte) : Cliquez sur l'icône TextBox, cliquez sur le formulaire, dans les propriétés, changez le nom en "txtIterations"
+Frame (cadre) : Cliquez sur l'icône Frame, dessinez un grand rectangle sur le formulaire, dans les propriétés, changez le nom en "fraHistogram" et effacez le caption
+Image : Cliquez sur l'icône Image, cliquez à l'intérieur du cadre fraHistogram, dans les propriétés, changez le nom en "imgHistogram"
+CommandButton (bouton) : Cliquez sur l'icône CommandButton, cliquez sur le formulaire, dans les propriétés, changez le nom en "cmdRunSimulation" et le caption en "Exécuter la simulation"
+OptionButton (bouton d'option) : Cliquez sur l'icône OptionButton, cliquez sur le formulaire, dans les propriétés, changez le nom en "optHistogram" et le caption en "Histogramme"
+
+
+
+Suivez ces étapes pour créer tous les contrôles nécessaires avec leurs noms exacts. Une fois terminé, le code du formulaire devrait fonctionner sans erreur.

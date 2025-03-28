@@ -1,0 +1,241 @@
+' --------------------------------------------------------------------------------------
+' Module: mdlCharts
+' Description: Module pour créer les graphiques de visualisation
+' --------------------------------------------------------------------------------------
+Option Explicit
+
+Sub CreateHistogram(values() As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim histoRange As Range
+    Dim i As Long, binCount As Integer
+    Dim minVal As Double, maxVal As Double, binWidth As Double
+    Dim frequency() As Long
+    Dim bins() As Double
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    
+    ' Effacer le contenu existant
+    wsCharts.Cells.Clear
+    
+    ' Calculer les paramètres de l'histogramme
+    minVal = Application.WorksheetFunction.Min(values)
+    maxVal = Application.WorksheetFunction.Max(values)
+    
+    ' Déterminer le nombre de bins (classes) - règle empirique
+    binCount = WorksheetFunction.RoundUp(Sqr(UBound(values)), 0)
+    If binCount > 20 Then binCount = 20 ' Limiter à 20 pour la lisibilité
+    
+    binWidth = (maxVal - minVal) / binCount
+    
+    ' Redimensionner les tableaux pour les fréquences et les bins
+    ReDim frequency(1 To binCount)
+    ReDim bins(1 To binCount)
+    
+    ' Calculer les limites des bins
+    For i = 1 To binCount
+        bins(i) = minVal + (i - 1) * binWidth
+    Next i
+    
+    ' Compter les fréquences
+    For i = LBound(values) To UBound(values)
+        Dim binIndex As Integer
+        binIndex = WorksheetFunction.Min(WorksheetFunction.Max(WorksheetFunction.Floor((values(i) - minVal) / binWidth, 1) + 1, 1), binCount)
+        frequency(binIndex) = frequency(binIndex) + 1
+    Next i
+    
+    ' Créer les données pour le graphique
+    wsCharts.Range("A1").Value = "Bin"
+    wsCharts.Range("B1").Value = "Limite inférieure"
+    wsCharts.Range("C1").Value = "Fréquence"
+    
+    For i = 1 To binCount
+        wsCharts.Cells(i + 1, 1).Value = i
+        wsCharts.Cells(i + 1, 2).Value = bins(i)
+        wsCharts.Cells(i + 1, 3).Value = frequency(i)
+    Next i
+    
+    ' Créer l'histogramme
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Histogramme"
+    
+    With chartSheet
+        .ChartType = xlColumnClustered
+        .SetSourceData Source:=wsCharts.Range("A1:C" & binCount + 1)
+        .HasTitle = True
+        .ChartTitle.Text = "Distribution des Valeurs Finales du Portefeuille"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Valeur finale du portefeuille (€)"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Fréquence"
+        
+        ' Formater la série
+        With .FullSeriesCollection(1)
+            .Name = "Fréquence"
+            .Format.Fill.ForeColor.RGB = RGB(68, 114, 196)
+        End With
+        
+        ' Ajouter une ligne pour la VaR à 95%
+        Dim VaR As Double
+        VaR = ThisWorkbook.Worksheets(SHEET_RESULTS).Range("B6").Value
+        
+        Dim varLine As Object
+        Set varLine = .Shapes.AddLine(Left:=0, Top:=0, Width:=0, Height:=0)
+        varLine.Line.ForeColor.RGB = RGB(204, 0, 0)
+        varLine.Line.Weight = 2
+        varLine.Line.DashStyle = msoLineDash
+        
+        ' Positionner la ligne à l'emplacement de la VaR (approximatif)
+        Dim varBin As Integer
+        varBin = WorksheetFunction.Max(WorksheetFunction.Floor((VaR - minVal) / binWidth, 1) + 1, 1)
+        
+        ' Ajouter une annotation pour la VaR
+        Dim varTextbox As Object
+        Set varTextbox = .Shapes.AddTextbox(msoTextOrientationHorizontal, Left:=0, Top:=0, Width:=100, Height:=20)
+        varTextbox.TextFrame.Characters.Text = "VaR 95%: " & Format(VaR, "#,##0.00 €")
+        varTextbox.TextFrame.Characters.Font.Color = RGB(204, 0, 0)
+        varTextbox.TextFrame.Characters.Font.Bold = True
+    End With
+End Sub
+
+Sub CreateTimeEvolutionChart(iterations As Long, years As Integer, expectedReturn As Double, volatility As Double, initialAmount As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim i As Long, j As Long
+    Dim paths As Integer
+    Dim value As Double
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    
+    ' Créer quelques chemins d'évolution pour illustration
+    paths = 10 ' Nombre de chemins à afficher
+    
+    ' Ajouter les en-têtes
+    wsCharts.Range("E1").Value = "Année"
+    For i = 1 To paths
+        wsCharts.Cells(1, 5 + i).Value = "Chemin " & i  ' Correction: E remplacé par 5
+    Next i
+    
+    ' Générer les années
+    For i = 0 To years
+        wsCharts.Cells(i + 2, 5).Value = i
+    Next i
+    
+    ' Générer quelques chemins aléatoires
+    Randomize
+    
+    For i = 1 To paths
+        ' La valeur initiale est la même pour tous les chemins
+        wsCharts.Cells(2, 5 + i).Value = initialAmount
+        
+        ' Générer l'évolution du portefeuille année par année
+        For j = 1 To years
+            Dim annualReturn As Double
+            annualReturn = expectedReturn + volatility * BoxMullerTransform()
+            value = wsCharts.Cells(j + 1, 5 + i).Value * (1 + annualReturn / 100)
+            wsCharts.Cells(j + 2, 5 + i).Value = value
+        Next j
+    Next i
+    
+    ' Créer le graphique d'évolution temporelle
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Évolution Temporelle"
+    
+    With chartSheet
+        .ChartType = xlLine
+        .SetSourceData Source:=wsCharts.Range("E1:" & wsCharts.Cells(1, 5 + paths).Address & wsCharts.Cells(years + 2, 5 + paths).Address)
+        .HasTitle = True
+        .ChartTitle.Text = "Évolution Temporelle du Portefeuille"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Année"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Valeur du portefeuille (€)"
+        
+        ' Formater les séries pour différentes couleurs
+        For i = 1 To paths
+            With .FullSeriesCollection(i)
+                .Format.Line.Weight = 1.5
+            End With
+        Next i
+    End With
+End Sub
+
+Sub CreateDistributionChart(values() As Double)
+    Dim wsCharts As Worksheet
+    Dim chartSheet As Chart
+    Dim i As Long
+    Dim sortedValues() As Double
+    Dim iterations As Long
+    
+    Set wsCharts = ThisWorkbook.Worksheets(SHEET_CHARTS)
+    iterations = UBound(values)
+    
+    ' Copier les valeurs pour le tri
+    ReDim sortedValues(1 To iterations)
+    For i = 1 To iterations
+        sortedValues(i) = values(i)
+    Next i
+    
+    ' Tri des valeurs
+    Call BubbleSort(sortedValues)
+    
+    ' Préparer les données pour une courbe de distribution cumulée
+    wsCharts.Range("H1").Value = "Valeur"
+    wsCharts.Range("I1").Value = "Percentile"
+    
+    ' Sélectionner un sous-ensemble des valeurs triées pour le graphique
+    Dim step As Long
+    step = iterations \ 100 ' Prendre environ 100 points
+    If step < 1 Then step = 1
+    
+    Dim count As Long
+    count = 0
+    
+    For i = 1 To iterations Step step
+        count = count + 1
+        wsCharts.Cells(count + 1, 8).Value = sortedValues(i)
+        wsCharts.Cells(count + 1, 9).Value = i / iterations
+    Next i
+    
+    ' Ajouter la dernière valeur pour avoir 100%
+    count = count + 1
+    wsCharts.Cells(count + 1, 8).Value = sortedValues(iterations)
+    wsCharts.Cells(count + 1, 9).Value = 1
+    
+    ' Créer le graphique de distribution cumulée
+    Set chartSheet = Charts.Add
+    chartSheet.Name = "Distribution Cumulée"
+    
+    With chartSheet
+        .ChartType = xlLine
+        .SetSourceData Source:=wsCharts.Range("H1:I" & count + 1)
+        .HasTitle = True
+        .ChartTitle.Text = "Distribution Cumulée des Valeurs Finales"
+        
+        ' Configurer les axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Valeur finale du portefeuille (€)"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Probabilité cumulée"
+        
+        ' Formater la série
+        With .FullSeriesCollection(1)
+            .Format.Line.ForeColor.RGB = RGB(68, 114, 196)
+            .Format.Line.Weight = 2
+        End With
+        
+        ' Ajouter une ligne pour la VaR à 95%
+        Dim VaR As Double
+        VaR = ThisWorkbook.Worksheets(SHEET_RESULTS).Range("B6").Value
+        
+        Dim varLine As Object
+        Set varLine = .Shapes.AddLine(Left:=0, Top:=0, Width:=0, Height:=0)
+        varLine.Line.ForeColor.RGB = RGB(204, 0, 0)
+        varLine.Line.Weight = 2
+        varLine.Line.DashStyle = msoLineDash
+    End With
+End Sub
